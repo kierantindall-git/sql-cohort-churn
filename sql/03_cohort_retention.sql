@@ -50,11 +50,19 @@ SELECT
     cs.cohort_month,
     cs.cohort_size,
     100.0                                                                  AS m0_pct,  -- everyone active at signup
-    ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  1), 0) / cs.cohort_size, 1) AS m1_pct,
-    ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  2), 0) / cs.cohort_size, 1) AS m2_pct,
-    ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  3), 0) / cs.cohort_size, 1) AS m3_pct,
-    ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  6), 0) / cs.cohort_size, 1) AS m6_pct,
-    ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months = 12), 0) / cs.cohort_size, 1) AS m12_pct
+    -- Maturity guard: report a cell only if the cohort had time to reach that
+    -- tenure by the 2025-12 cutoff; otherwise NULL, so immature cells are blank
+    -- in the output instead of a misleading 0.0.
+    CASE WHEN (cs.cohort_month + INTERVAL '1 month')::DATE  <= DATE '2025-12-01'
+         THEN ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  1), 0) / cs.cohort_size, 1) END AS m1_pct,
+    CASE WHEN (cs.cohort_month + INTERVAL '2 months')::DATE <= DATE '2025-12-01'
+         THEN ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  2), 0) / cs.cohort_size, 1) END AS m2_pct,
+    CASE WHEN (cs.cohort_month + INTERVAL '3 months')::DATE <= DATE '2025-12-01'
+         THEN ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  3), 0) / cs.cohort_size, 1) END AS m3_pct,
+    CASE WHEN (cs.cohort_month + INTERVAL '6 months')::DATE <= DATE '2025-12-01'
+         THEN ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months =  6), 0) / cs.cohort_size, 1) END AS m6_pct,
+    CASE WHEN (cs.cohort_month + INTERVAL '12 months')::DATE <= DATE '2025-12-01'
+         THEN ROUND(100.0 * COALESCE(MAX(r.active_customers) FILTER (WHERE r.tenure_months = 12), 0) / cs.cohort_size, 1) END AS m12_pct
 FROM cohort_sizes cs
 LEFT JOIN retained r USING (cohort_month)
 GROUP BY 1, 2
